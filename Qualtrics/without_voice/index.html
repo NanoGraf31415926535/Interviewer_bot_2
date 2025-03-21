@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Interview Chat</title>
+    <style>
+        /* Your CSS styles from the Qualtrics code */
+        .chat-container {
+            width: 95%;
+            margin-left: auto;
+            margin-right: auto;
+            min-width: 300px;
+            max-width: 800px;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            padding: 1px;
+            height: 700px;
+        }
+
+        .chat-area {
+            overflow-y: scroll;
+            height: calc(100% - 200px);
+            margin-bottom: 5px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .input-container {
+            position: relative;
+            margin-top: 5px;
+        }
+
+        .input-box {
+            width: 100%;
+            resize: vertical;
+            font-size: 18px;
+            min-height: 150px;
+            max-height: 150px;
+            border: 2px solid #A9A9A9;
+            border-radius: 10px;
+            padding: 10px;
+            overflow: auto;
+        }
+
+        .submit-button-container {
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 10px;
+        }
+
+        .submit-button {
+            background-color: #007AC0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+        .dot {
+            display:inline-block;
+            width:12px;
+            height:6px;
+            border-radius:50%;
+            margin-right:3px;
+            background:#303131;
+            animation: wave 1.3s linear infinite;
+        }
+        @keyframes wave {
+            0%, 60%, 100% {transform: initial;}
+            30% {transform: translateY(-7px);}
+        }
+
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-area" id="chatArea">&nbsp;</div>
+        <div class="input-container">
+            <textarea class="input-box" id="inputBox" placeholder="Type your message here..." maxlength="3000"></textarea>
+        </div>
+        <div class="submit-button-container">
+            <div style="flex-grow: 1; font-size: 18px; border: none; height: 30px; line-height: 1.2; padding-left: 10px; color: rgb(53, 53, 53);">Please write full sentences.</div>
+            <button class="submit-button" id="submitButton">Submit response</button>
+        </div>
+    </div>
+
+    <script>
+        // Replace Qualtrics embedded data with hardcoded values
+        var userID = "testUser124";
+        var interviewID = "STOCK_MARKET";
+        var endpoint = "YOUR_ENDPOINT_HERE"; // REMOVED SENSITIVE DATA
+
+        var firstQuestion; 
+        var chatArea = document.getElementById("chatArea");
+        var submitButton = document.getElementById("submitButton");
+        var inputField = document.getElementById("inputBox");
+
+        function appendChatbotMessage(message, chatArea, status) {
+            var messageContent = document.createElement('div');
+            messageContent.style.cssText = "word-wrap: break-word; width: 80%; border: 1px solid #F6F6F6; border-radius: 5px; padding: 5px; margin-bottom: 10px; background-color: #F6F6F6; display: block; margin-right: auto;  font-size: 18px; line-height: 1.5;";
+
+            if (status === "waiting") {
+                messageContent.innerHTML = `
+                <div word-wrap: break-word; width: 80%; border: 1px solid #F6F6F6; border-radius: 5px; padding: 5px; margin-bottom: 10px; background-color: #F6F6F6; display: block; margin-right: auto;>
+                <div id="wave" style="position:relative; vertical-align: center text-align:left"; text-align:center;">
+                <span class="dot"></span>
+                <span class="dot" style="animation-delay: -1.1s;"></span>
+                <span class="dot" style="animation-delay: -0.9s;"></span>
+                </div></div>`;
+                messageContent.id = "dancingDots";
+            } else if (status === "response") {
+                var existingDots = document.getElementById("dancingDots");
+                if (existingDots) {
+                    existingDots.innerText = message.trim();
+                    existingDots.removeAttribute('id');
+                    chatArea.scrollTop = chatArea.scrollHeight;
+                    return;
+                } else {
+                    messageContent.innerText = message.trim();
+                }
+            }
+            chatArea.appendChild(messageContent);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                route: "next",
+                payload: {
+                    user_message: "",
+                    session_id: userID,
+                    interview_id: interviewID,
+                },
+            }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Correctly extract the question from the 'message' field
+            if (data && data.message) {
+                firstQuestion = data.message.trim();
+                appendChatbotMessage(firstQuestion, chatArea, "response");
+            } else {
+                console.error("Unexpected data structure from Lambda:", data);
+                appendChatbotMessage("Error: Could not retrieve question.", chatArea, "response");
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            appendChatbotMessage("There was a technical error. Please refresh the page.", chatArea, "response");
+        });
+
+        ["copy", "cut", "paste"].forEach(eventType => {
+            [chatArea, inputField].forEach(element => {
+                element.addEventListener(eventType, event => {
+                    event.preventDefault();
+                });
+            });
+        });
+
+        submitButton.addEventListener("click", function () {
+            var userMessage = inputField.value.trim();
+            if (userMessage) {
+                inputField.value = "";
+                submitButton.disabled = true;
+                submitButton.style.backgroundColor = '#ccc';
+                submitButton.innerText = "Waiting for reply...";
+
+                var messageContent = document.createElement('div');
+                messageContent.style.cssText = "display: inline-block; max-width: 80%; border: 1px solid #ddd; border-radius: 5px; padding: 5px; margin-bottom: 10px; background-color: #ddd; word-wrap: break-word; white-space: pre-wrap; box-sizing: border-box; font-size: 18px; text-align: left; line-height: 1.5;";
+                messageContent.innerText = userMessage;
+                chatArea.appendChild(messageContent);
+                chatArea.scrollTop = chatArea.scrollHeight;
+
+                appendChatbotMessage("", chatArea, "waiting");
+
+                fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        route: "next",
+                        payload: {
+                            user_message: userMessage,
+                            session_id: userID,
+                            interview_id: interviewID,
+                        },
+                    }),
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    var next_question;
+                    // Correctly extract the question from the 'message' field
+                    if (data && data.message) {
+                        next_question = data.message.trim();
+                    } else {
+                        console.error("Unexpected data structure from Lambda:", data);
+                        next_question = "Error: Could not retrieve next question.";
+                    }
+
+                    var endInterviewIndex = next_question.indexOf("---END---");
+                    if (endInterviewIndex !== -1) {
+                        next_question = next_question.replace("---END---", "");
+                        next_question = next_question.trim();
+                        submitButton.disabled = true;
+                        submitButton.innerText = "End of interview";
+                    } else {
+                        submitButton.disabled = false;
+                        submitButton.innerText = "Submit response";
+                        submitButton.style.backgroundColor = '#007BFF';
+                    }
+                    appendChatbotMessage(next_question, chatArea, "response");
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    appendChatbotMessage("There was a technical error. Please try again.", chatArea, "response");
+                    submitButton.disabled = false;
+                    submitButton.style.backgroundColor = '#007BFF';
+                    submitButton.innerText = "Submit response";
+                });
+            }
+        });
+    </script>
+</body>
+</html>
